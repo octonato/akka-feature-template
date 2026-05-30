@@ -8,8 +8,6 @@ function akka.new.feature {
         git.worktree -p $1
         ./set-feature.sh $1
 
-        git add .
-        git commit -m "feat: initialize '$1'"
 
         DIR=$(pwd)
         echo "Feature directory is $DIR"
@@ -30,6 +28,9 @@ function akka.new.feature {
             git.worktree -p ${DIR}/$1-runtime
             echo "-----------------------------------------------"
         )
+
+        git add .
+        git commit -m "feat: initialize '$1'"
 
         echo
         echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
