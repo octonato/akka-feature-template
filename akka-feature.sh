@@ -47,7 +47,7 @@ function akka.close.feature {
             DIR=~/Sources/akka/feature/$1
 
 
-            echo "Deleting feature branch $1"
+            echo "Deleting feature branch '$1'"
             echo "  SDK worktree at ${DIR}/$1-sdk"
             echo "  Runtime worktree at ${DIR}/$1-runtime"
             echo "  Feature worktree at ${DIR}"
