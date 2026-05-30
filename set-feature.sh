@@ -9,7 +9,7 @@ if [ "$#" -ne 1 ] || [ -z "$1" ]; then
 fi
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-targets=("$script_dir/build.sbt" "$script_dir/.gitignore")
+targets=("$script_dir/build.sbt" "$script_dir/.gitignore" "$script_dir/CLAUDE.md")
 
 for target in "${targets[@]}"; do
   if [ ! -f "$target" ]; then

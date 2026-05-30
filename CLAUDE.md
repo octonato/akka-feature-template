@@ -1,6 +1,6 @@
 This project contains two worktrees. One for the runtime and one for the SDK.
 
-The runtime worktree is suffixed with `-runtime` and the SDK worktree is suffixed with `-sdk`.
+The runtime worktree is `{feature}-runtime` and the SDK worktree is `{feature}-sdk`.
 They share code through an SPI defined in the runtime worktree.
 
 When we change the SPI, we must adapt it in the SDK side as well.
@@ -20,8 +20,8 @@ How it works:
   reference the sub-builds (no `RootProject` / `aggregate` / `dependsOn`).
 * In IntelliJ: open the root, then in the **sbt tool window** click **`+`** twice to
   link each real build separately:
-  - `multimodal-tool-support-runtime/build.sbt`
-  - `multimodal-tool-support-sdk/build.sbt`
+  - `{feature}-runtime/build.sbt`
+  - `{feature}-sdk/build.sbt`
 * This keeps the two builds fully decoupled. The SDK still depends on the runtime as a
   published artifact, so SPI changes go through the publish + version-bump flow above.
 
@@ -41,4 +41,4 @@ Local scaffolding at the root (all untracked, safe to delete to revert):
 
 ⚠️ Because of that root `.git`: running `git` from the root directory talks to the
 throwaway scaffold repo, NOT the worktrees. Always run git **inside** the
-`-runtime` / `-sdk` subdirectories.
+`{feature}-runtime` / `{feature}-sdk` subdirectories.
