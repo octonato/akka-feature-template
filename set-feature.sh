@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Replace all occurrences of '{feature}' in build.sbt with the given name.
+# Replace all occurrences of '{feature}' in build.sbt and .gitignore with the given name.
 # Usage: ./set-feature.sh <feature-name>
 set -euo pipefail
 
@@ -9,17 +9,20 @@ if [ "$#" -ne 1 ] || [ -z "$1" ]; then
 fi
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-target="$script_dir/build.sbt"
+targets=("$script_dir/build.sbt" "$script_dir/.gitignore")
 
-if [ ! -f "$target" ]; then
-  echo "Error: $target not found" >&2
-  exit 1
-fi
+for target in "${targets[@]}"; do
+  if [ ! -f "$target" ]; then
+    echo "Error: $target not found" >&2
+    exit 1
+  fi
+done
 
 # Escape characters that are special on the sed replacement side: \ & and the / delimiter.
 escaped=$(printf '%s' "$1" | sed -e 's/[\/&\\]/\\&/g')
 
-sed -i.bak "s/{feature}/$escaped/g" "$target"
-rm -f "$target.bak"
-
-echo "Replaced '{feature}' with '$1' in $target"
+for target in "${targets[@]}"; do
+  sed -i.bak "s/{feature}/$escaped/g" "$target"
+  rm -f "$target.bak"
+  echo "Replaced '{feature}' with '$1' in $target"
+done
