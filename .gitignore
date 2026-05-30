@@ -1,0 +1,14 @@
+# Local-only root scaffold. This git repo exists ONLY because the globally-installed
+# sbt-git plugin (~/.sbt/1.0/plugins + ~/.sbt/1.0/worktree-fix.sbt) runs `git` on every
+# build, including this trivial anchor. It is never pushed and tracks nothing real.
+# The two worktrees manage their own git.
+multimodal-tool-support-runtime/
+multimodal-tool-support-sdk/
+target/
+project/target/
+project/project/
+.idea/
+.bsp/
+.nogit/
+.claude/
+samples
