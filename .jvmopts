@@ -1,0 +1,18 @@
+# Root composite scaffolding (LOCAL DEV ONLY, untracked — like .git / project/build.properties).
+#
+# A composite build runs in ONE JVM, and sbt reads .jvmopts ONLY from the directory it is
+# launched in (the root) — it does NOT read foobar-runtime/.jvmopts or foobar-sdk/.jvmopts.
+# So the JVM flags those builds need must be repeated here, or tasks like `javafmt`
+# (google-java-format) fail on JDK 16+ with IllegalAccessError on com.sun.tools.javac.*.
+
+-Xms2G
+-Xmx4G
+-Xss2M
+
+# for google-java-format (javafmt) — required on JDK 16+ (incl. JDK 21)
+--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED
+--add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED
+--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED
+--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED
+--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED
+--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED

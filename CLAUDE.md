@@ -5,17 +5,15 @@ They share code through an SPI defined in the runtime worktree.
 
 ## SPI evolution
 
-When we change the SPI, we must adapt it on the SDK side as well. The flow is:
-publish the runtime locally, then update the SDK's runtime dependency version.
+When we change the SPI, we must adapt it in the SDK side as well.
+After changing the SPI, publish the runtime locally and point the SDK at the new version.
 
-Use `publish-and-update.sh` to do both in one step:
+How to update the SDK's runtime version:
+* From a root sbt session, run `publishSpi`. It publishes every runtime module to `~/.m2`
+  (consumed by the Maven-based samples) and `~/.ivy2/local` (consumed by the SDK build),
+  rewrites `akka-runtime.version` in `{feature}-sdk/project/Dependencies.scala` to the freshly
+  published version, and reloads. IntelliJ auto-reloads on the `Dependencies.scala` change.
 
-```
-./publish-and-update.sh {feature}-runtime {feature}-sdk
-```
-
-It publishes the runtime locally (`publishM2` + `publishLocal`), extracts the
-published version, and runs the SDK's `updateRuntimeVersions.sh` with it.
 
 ## IntelliJ multi-project setup
 
