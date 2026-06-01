@@ -1,17 +1,23 @@
-// Root anchor — LOCAL DEV ONLY, untracked.
+// Root COMPOSITE build — LOCAL DEV ONLY
 //
-// Its ONLY purpose is to make this root directory an sbt build so IntelliJ enables
-// the sbt tool window. From there, link the two real builds separately
-// (sbt tool window -> "+" -> pick each build.sbt):
+// Loads BOTH real builds as sbt composites so IntelliJ picks them up automatically:
 //   - {feature}-runtime
 //   - {feature}-sdk
 //
-// The two builds stay fully decoupled and standalone-buildable. The SDK depends on
-// the runtime as a published artifact: after an SPI change, publish the runtime
-// locally and bump the SDK's runtime version (see publish-and-update.sh / CLAUDE.md).
-//
-// IMPORTANT: do NOT reference the sub-builds from here (no RootProject/aggregate/
-// dependsOn). This file must do nothing but exist.
+// The two builds stay decoupled:
+// the SDK still depends on the runtime as a published artifact (no .dependsOn here).
 
-name := "{feature}-root"
 ThisBuild / scalaVersion := "2.13.18"
+
+// Blocker #4: the SDK's project/Common.scala reads `ThisBuild / isSnapshot`. In a
+// composite the builds share Global scope and this would otherwise be undefined.
+ThisBuild / isSnapshot := true
+
+lazy val runtime = RootProject(file("{feature}-runtime"))
+lazy val sdk = RootProject(file("{feature}-sdk"))
+
+// aggregate only groups the two builds for IntelliJ pickup / task fan-out.
+// It does NOT create a source dependency between them.
+lazy val root = (project in file("."))
+  .settings(name := "{feature}-root")
+  .aggregate(runtime, sdk)
