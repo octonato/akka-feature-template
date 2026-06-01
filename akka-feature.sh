@@ -17,6 +17,7 @@ function akka.new.feature {
             echo "Creating sdk worktree at ${DIR}/$1-sdk"
             cd ~/Sources/akka/sdk/main
             git.worktree -p ${DIR}/$1-sdk
+            ln -s $1-sdk/samples samples
             echo "-----------------------------------------------"
             echo
         )
