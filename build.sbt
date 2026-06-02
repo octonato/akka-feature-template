@@ -24,6 +24,33 @@ lazy val root = (project in file("."))
 
 
   // ---------------------------------------------------------------------------
+  // rt / sdk — run a task in a sub-build without typing the build URI.
+  //
+  //   rt  <task>   ->  runtime build   e.g.  rt compile
+  //                                          rt runtime-core/test
+  //   sdk <task>   ->  sdk build       e.g.  sdk test
+  //                                          sdk akka-javasdk/compile
+  //
+  // With no `proj/` the task runs on the sub-build's aggregating root (fans out
+  // over every module); with a `proj/task` it targets that one module.
+  //
+  // Composite cross-build refs are addressed as {build-uri}proj/task — this just
+  // hides the {uri} bookkeeping behind a name. (A plain addCommandAlias can't do
+  // this: aliases are literal prepends and the trailing space breaks the parse.)
+  // ---------------------------------------------------------------------------
+  def delegateTo(name: String, build: java.io.File, rootId: String): Command =
+    Command.args(name, "<task>") { (state, args) =>
+      val uri = build.getCanonicalFile.toURI
+      val task = args.mkString(" ")
+      val scoped = if (task.contains("/")) task else s"$rootId/$task"
+      s"{$uri}$scoped" :: state
+    }
+
+  commands += delegateTo("rt", file("{feature}-runtime"), "root")
+  commands += delegateTo("sdk", file("{feature}-sdk"), "akka-javasdk-root")
+
+
+  // ---------------------------------------------------------------------------
   // publishSpi — publish the runtime SPI locally and point the SDK at it.
   //
   // The SDK pins the runtime version via a plain Scala constant in its metabuild:
@@ -65,11 +92,10 @@ lazy val root = (project in file("."))
   }
 
   commands += Command.command("publishSpi") { state =>
-    // Cross-build project refs in a composite are addressed as {build-uri}id/task; the
-    // runtime build's aggregating `root` publishes the whole module set in one task.
-    val runtimeBuild = file("{feature}-runtime").getCanonicalFile.toURI
-    s"{$runtimeBuild}root/publishM2" ::
-      s"{$runtimeBuild}root/publishLocal" ::
+    // `rt <task>` targets the runtime build's aggregating `root`, so each publish
+    // covers the whole module set in one task (see delegateTo above).
+    "rt publishM2" ::
+      "rt publishLocal" ::
       "syncSdkRuntimeVersion" ::
       "reload" ::
       state
