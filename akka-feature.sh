@@ -92,9 +92,14 @@ _akka_check_data_loss() {
 }
 
 # Prompt the user if there are data loss warnings.
+# Pass a non-empty second argument to skip the prompt (assume "yes").
 # Returns 0 if safe to proceed, 1 if aborted.
 _akka_confirm_data_loss() {
   local dir="$1"
+  local skip_confirm="$2"
+
+  [ -n "$skip_confirm" ] && return 0
+
   local warnings=$(_akka_check_data_loss "$dir")
 
   if [ -n "$warnings" ]; then
@@ -111,13 +116,15 @@ _akka_confirm_data_loss() {
 }
 
 # Remove a worktree and its branch.
+# Pass a non-empty second argument to skip the data-loss confirmation.
 _akka_worktree_remove() {
   if [ -d .git ]; then
     if [ "$1" ]; then
       local WORKTREE_PATH="$1"
+      local skip_confirm="$2"
       local BRANCH_NAME=$(git -C "$WORKTREE_PATH" rev-parse --abbrev-ref HEAD 2>/dev/null)
 
-      _akka_confirm_data_loss "$WORKTREE_PATH" || return 0
+      _akka_confirm_data_loss "$WORKTREE_PATH" "$skip_confirm" || return 0
 
       git worktree remove --force "$WORKTREE_PATH"
       if [ "$BRANCH_NAME" != "HEAD" ] && [ -n "$BRANCH_NAME" ]; then
@@ -132,8 +139,10 @@ _akka_worktree_remove() {
 }
 
 # Delete a branch directory, handling both worktrees and hard forks.
+# Pass a non-empty second argument to skip the data-loss confirmation.
 _akka_delete_branch() {
   local dir="$1"
+  local skip_confirm="$2"
   if [ ! -d "$dir" ]; then
     echo "Directory not found: $dir"
     return 1
@@ -146,10 +155,10 @@ _akka_delete_branch() {
     echo "Removing worktree $(basename "$WORKTREE_PATH")"
     (
       cd "$MAIN_DIR"
-      _akka_worktree_remove "$WORKTREE_PATH"
+      _akka_worktree_remove "$WORKTREE_PATH" "$skip_confirm"
     )
   else
-    _akka_confirm_data_loss "$dir" || return 0
+    _akka_confirm_data_loss "$dir" "$skip_confirm" || return 0
     echo "Removing $dir"
     rm -rf "$dir"
   fi
@@ -165,6 +174,7 @@ akka.new.feature() {
         _akka_require_env || return 1
 
         # create feature worktree (as a sibling of the template directory)
+        echo "Creating feature worktree $1 in $AKKA_FEATURE_DIR"
         cd "$AKKA_FEATURE_DIR"
         _akka_git_worktree "$1"
         ./set-feature.sh "$1"
@@ -213,30 +223,44 @@ akka.new.feature() {
 
 akka.close.feature() {
 
-    if [ $1 ]; then
+    # Parse arguments: an optional -f/--force flag skips all data-loss
+    # confirmations, the remaining argument is the feature name.
+    local skip_confirm=""
+    local feature=""
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -f|--force) skip_confirm=1 ;;
+            *)          feature="$1" ;;
+        esac
+        shift
+    done
+
+    if [ -n "$feature" ]; then
         _akka_require_env || return 1
         (
-            DIR="$(dirname "$AKKA_FEATURE_DIR")/$1"
+            DIR="$(dirname "$AKKA_FEATURE_DIR")/$feature"
 
-            echo "Deleting feature branch '$1'"
-            echo "  SDK worktree at ${DIR}/$1-sdk"
-            echo "  Runtime worktree at ${DIR}/$1-runtime"
+            echo "Deleting feature branch '$feature'"
+            echo "  SDK worktree at ${DIR}/$feature-sdk"
+            echo "  Runtime worktree at ${DIR}/$feature-runtime"
             echo "  Feature worktree at ${DIR}"
             echo "-----------------------------------------------"
             echo
 
             echo
             echo "-----------------------------------------------"
-            echo "Deleting SDK worktree at ${DIR}/$1-sdk"
-            _akka_delete_branch "${DIR}/$1-sdk"
+            echo "Deleting SDK worktree at ${DIR}/$feature-sdk"
+            _akka_delete_branch "${DIR}/$feature-sdk" "$skip_confirm"
             echo
             echo "-----------------------------------------------"
-            echo "Deleting Runtime worktree at ${DIR}/$1-runtime"
-            _akka_delete_branch "${DIR}/$1-runtime"
+            echo "Deleting Runtime worktree at ${DIR}/$feature-runtime"
+            _akka_delete_branch "${DIR}/$feature-runtime" "$skip_confirm"
             echo
             echo "-----------------------------------------------"
+            # The root feature worktree never needs confirmation: it only holds
+            # the scaffold + symlink, the real work lives in the sub-worktrees.
             echo "Finally delete feature worktree ${DIR}"
-            _akka_delete_branch "${DIR}"
+            _akka_delete_branch "${DIR}" 1
             echo "-----------------------------------------------"
         )
     fi
