@@ -1,12 +1,173 @@
+#!/usr/bin/env bash
+#
+# akka-feature.sh — create / close an Akka "feature" workspace made of three
+# linked git worktrees: a feature root, the SDK and the runtime.
+#
+# Source this file from your shell to get the `akka.new.feature` and
+# `akka.close.feature` functions.
+#
+# Required environment variables:
+#   AKKA_FEATURE_DIR    path to the feature template repo. Feature worktrees are
+#                       created as siblings of this directory.
+#   AKKA_SDK_DIR        path to the Akka SDK checkout used as the worktree base.
+#   AKKA_RUNTIME_DIR    path to the Akka runtime checkout used as the worktree base.
+#
+# Optional environment variables:
+#   GH_USER_PREFIX      prefix prepended to every created branch name.
+#
+# See README.md for setup instructions.
 
-function akka.new.feature {
+# Verify the required configuration is present before doing any work.
+_akka_require_env() {
+  local missing=0
+  [ -z "$AKKA_FEATURE_DIR" ] && { echo "akka-feature.sh: AKKA_FEATURE_DIR is not set" >&2; missing=1; }
+  [ -z "$AKKA_SDK_DIR" ]      && { echo "akka-feature.sh: AKKA_SDK_DIR is not set" >&2; missing=1; }
+  [ -z "$AKKA_RUNTIME_DIR" ]  && { echo "akka-feature.sh: AKKA_RUNTIME_DIR is not set" >&2; missing=1; }
+  return $missing
+}
+
+# ----------------------------------------------------------------------------
+# git-worktree helpers
+# ----------------------------------------------------------------------------
+
+# Print the current branch name of the repository in the current directory.
+_akka_git_current_branch() {
+  git rev-parse --abbrev-ref HEAD 2>/dev/null
+}
+
+# Create a worktree for a new branch, cd into it, and pull from upstream.
+# If GH_USER_PREFIX is set it is prepended to the branch name.
+# Accepts either a bare name (worktree created as ../<name>) or a path
+# containing a slash (used verbatim as the worktree location).
+_akka_git_worktree() {
+  if [ ! -d .git ]; then
+    echo "Not a git repository"
+    return 1
+  fi
+
+  local name="$1"
+  if [ -z "$name" ]; then
+    echo "usage: _akka_git_worktree <name|path>"
+    return 1
+  fi
+
+  local base_branch=$(_akka_git_current_branch)
+  local worktree_path
+  case "$name" in
+    */*) worktree_path="$name" ;;
+    *)   worktree_path="../$name" ;;
+  esac
+  local branch_name=$(basename "$name")
+
+  git worktree add -b "${GH_USER_PREFIX}${branch_name}" "$worktree_path"
+  cd "$worktree_path"
+
+  echo "pulling from upstream ${base_branch}..."
+  git pull upstream "$base_branch"
+}
+
+# Check a git directory for potential data loss.
+# Returns warnings via stdout. Empty output means safe to delete.
+_akka_check_data_loss() {
+  local dir="$1"
+  local warnings=""
+
+  if [ -n "$(git -C "$dir" status --porcelain 2>/dev/null)" ]; then
+    warnings="${warnings}  - Has uncommitted/unstaged changes\n"
+  fi
+
+  local remote_branch=$(git -C "$dir" rev-parse --abbrev-ref @{upstream} 2>/dev/null)
+  if [ -z "$remote_branch" ]; then
+    warnings="${warnings}  - No remote tracking branch (no backup)\n"
+  else
+    git -C "$dir" fetch --quiet 2>/dev/null
+    local local_rev=$(git -C "$dir" rev-parse HEAD 2>/dev/null)
+    local remote_rev=$(git -C "$dir" rev-parse @{upstream} 2>/dev/null)
+    if [ "$local_rev" != "$remote_rev" ]; then
+      warnings="${warnings}  - Local differs from remote (unpushed commits)\n"
+    fi
+  fi
+
+  printf '%b' "$warnings"
+}
+
+# Prompt the user if there are data loss warnings.
+# Returns 0 if safe to proceed, 1 if aborted.
+_akka_confirm_data_loss() {
+  local dir="$1"
+  local warnings=$(_akka_check_data_loss "$dir")
+
+  if [ -n "$warnings" ]; then
+    echo "Warning: potential data loss in $dir:"
+    printf '%b' "$warnings"
+    printf 'Continue? (y/N) '
+    read -r confirm
+    if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+      echo "Aborted."
+      return 1
+    fi
+  fi
+  return 0
+}
+
+# Remove a worktree and its branch.
+_akka_worktree_remove() {
+  if [ -d .git ]; then
+    if [ "$1" ]; then
+      local WORKTREE_PATH="$1"
+      local BRANCH_NAME=$(git -C "$WORKTREE_PATH" rev-parse --abbrev-ref HEAD 2>/dev/null)
+
+      _akka_confirm_data_loss "$WORKTREE_PATH" || return 0
+
+      git worktree remove --force "$WORKTREE_PATH"
+      if [ "$BRANCH_NAME" != "HEAD" ] && [ -n "$BRANCH_NAME" ]; then
+        git branch -D "$BRANCH_NAME"
+      fi
+    else
+      echo "path must be passed, usage: _akka_worktree_remove ../some-name"
+    fi
+  else
+    echo "Not a git repository"
+  fi
+}
+
+# Delete a branch directory, handling both worktrees and hard forks.
+_akka_delete_branch() {
+  local dir="$1"
+  if [ ! -d "$dir" ]; then
+    echo "Directory not found: $dir"
+    return 1
+  fi
+
+  if [ -f "$dir/.git" ]; then
+    # It's a worktree, remove it properly from the main worktree
+    local WORKTREE_PATH=$(git -C "$dir" rev-parse --show-toplevel)
+    local MAIN_DIR=$(git -C "$dir" worktree list --porcelain | head -1 | sed 's/^worktree //')
+    echo "Removing worktree $(basename "$WORKTREE_PATH")"
+    (
+      cd "$MAIN_DIR"
+      _akka_worktree_remove "$WORKTREE_PATH"
+    )
+  else
+    _akka_confirm_data_loss "$dir" || return 0
+    echo "Removing $dir"
+    rm -rf "$dir"
+  fi
+}
+
+# ----------------------------------------------------------------------------
+# Feature lifecycle
+# ----------------------------------------------------------------------------
+
+akka.new.feature() {
 
     if [ $1 ]; then
+        _akka_require_env || return 1
 
-        # create feature worktree
-        cd ~/Sources/akka/feature/template
-        git.worktree -p $1
-        ./set-feature.sh $1
+        # create feature worktree (as a sibling of the template directory)
+        cd "$AKKA_FEATURE_DIR"
+        _akka_git_worktree "$1"
+        ./set-feature.sh "$1"
 
 
         DIR=$(pwd)
@@ -15,8 +176,8 @@ function akka.new.feature {
             echo
             echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
             echo "Creating sdk worktree at ${DIR}/$1-sdk"
-            cd ~/Sources/akka/sdk/main
-            git.worktree -p ${DIR}/$1-sdk
+            cd "$AKKA_SDK_DIR"
+            _akka_git_worktree "${DIR}/$1-sdk"
             echo "-----------------------------------------------"
             echo
         )
@@ -25,8 +186,8 @@ function akka.new.feature {
             echo
             echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
             echo "Creating runtime worktree at ${DIR}/$1-runtime"
-            cd ~/Sources/akka/runtime/main
-            git.worktree -p ${DIR}/$1-runtime
+            cd "$AKKA_RUNTIME_DIR"
+            _akka_git_worktree "${DIR}/$1-runtime"
             echo "-----------------------------------------------"
             echo
         )
@@ -34,7 +195,7 @@ function akka.new.feature {
         # the root project requires samples to be available at the root
         echo "-----------------------------------------------"
         echo "Creating symlink for samples at ${1}-sdk/samples"
-        ln -s $1-sdk/samples samples
+        ln -s "$1-sdk/samples" samples
         echo "-----------------------------------------------"
         echo
 
@@ -50,12 +211,12 @@ function akka.new.feature {
     fi
 }
 
-function akka.close.feature {
+akka.close.feature() {
 
     if [ $1 ]; then
+        _akka_require_env || return 1
         (
-            DIR=~/Sources/akka/feature/$1
-
+            DIR="$(dirname "$AKKA_FEATURE_DIR")/$1"
 
             echo "Deleting feature branch '$1'"
             echo "  SDK worktree at ${DIR}/$1-sdk"
@@ -64,19 +225,18 @@ function akka.close.feature {
             echo "-----------------------------------------------"
             echo
 
-
             echo
             echo "-----------------------------------------------"
             echo "Deleting SDK worktree at ${DIR}/$1-sdk"
-            git.delete.branch ${DIR}/$1-sdk
+            _akka_delete_branch "${DIR}/$1-sdk"
             echo
             echo "-----------------------------------------------"
             echo "Deleting Runtime worktree at ${DIR}/$1-runtime"
-            git.delete.branch ${DIR}/$1-runtime
+            _akka_delete_branch "${DIR}/$1-runtime"
             echo
             echo "-----------------------------------------------"
             echo "Finally delete feature worktree ${DIR}"
-            git.delete.branch ${DIR}
+            _akka_delete_branch "${DIR}"
             echo "-----------------------------------------------"
         )
     fi
