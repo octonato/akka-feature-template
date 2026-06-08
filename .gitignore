@@ -14,3 +14,4 @@ project/project/
 samples
 {feature}-sdk/
 {feature}-runtime/
+.features
