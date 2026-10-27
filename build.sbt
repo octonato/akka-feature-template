@@ -1,8 +1,8 @@
 // Root COMPOSITE build — LOCAL DEV ONLY
 //
 // Loads BOTH real builds as sbt composites so IntelliJ picks them up automatically:
-//   - {feature}-runtime
-//   - {feature}-sdk
+//   - attributes-keep-only-strings-runtime
+//   - attributes-keep-only-strings-sdk
 //
 // The two builds stay decoupled:
 // the SDK still depends on the runtime as a published artifact (no .dependsOn here).
@@ -13,13 +13,13 @@ ThisBuild / scalaVersion := "2.13.18"
 // composite the builds share Global scope and this would otherwise be undefined.
 ThisBuild / isSnapshot := true
 
-lazy val runtime = RootProject(file("{feature}-runtime"))
-lazy val sdk = RootProject(file("{feature}-sdk"))
+lazy val runtime = RootProject(file("attributes-keep-only-strings-runtime"))
+lazy val sdk = RootProject(file("attributes-keep-only-strings-sdk"))
 
 // aggregate only groups the two builds for IntelliJ pickup / task fan-out.
 // It does NOT create a source dependency between them.
 lazy val root = (project in file("."))
-  .settings(name := "{feature}-root")
+  .settings(name := "attributes-keep-only-strings-root")
   .aggregate(runtime, sdk)
 
 
@@ -46,8 +46,8 @@ lazy val root = (project in file("."))
       s"{$uri}$scoped" :: state
     }
 
-  commands += delegateTo("rt", file("{feature}-runtime"), "root")
-  commands += delegateTo("sdk", file("{feature}-sdk"), "akka-javasdk-root")
+  commands += delegateTo("rt", file("attributes-keep-only-strings-runtime"), "root")
+  commands += delegateTo("sdk", file("attributes-keep-only-strings-sdk"), "akka-javasdk-root")
 
 
   // ---------------------------------------------------------------------------
@@ -55,7 +55,7 @@ lazy val root = (project in file("."))
   //
   // The SDK pins the runtime version via a plain Scala constant in its metabuild:
   //
-  //   {feature}-sdk/project/Dependencies.scala
+  //   attributes-keep-only-strings-sdk/project/Dependencies.scala
   //   val AkkaRuntimeVersion = sys.props.getOrElse("akka-runtime.version", "1.6.3")
   //
   // `publishSpi` runs these steps, in order, on the runtime build's aggregating `root`
@@ -73,10 +73,10 @@ lazy val root = (project in file("."))
 
   commands += Command.command("syncSdkRuntimeVersion") { state =>
     val extracted = Project.extract(state)
-    val runtimeBuild = file("{feature}-runtime").getCanonicalFile.toURI
+    val runtimeBuild = file("attributes-keep-only-strings-runtime").getCanonicalFile.toURI
     val publishedVersion = extracted.get(ProjectRef(runtimeBuild, "runtime-core") / version)
 
-    val depFile = file("{feature}-sdk/project/Dependencies.scala")
+    val depFile = file("attributes-keep-only-strings-sdk/project/Dependencies.scala")
     val original = IO.read(depFile)
     val pattern = """(sys\.props\.getOrElse\("akka-runtime\.version",\s*")[^"]*("\))""".r
     val updated = pattern.replaceAllIn(original, m => m.group(1) + publishedVersion + m.group(2))

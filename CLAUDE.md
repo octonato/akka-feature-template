@@ -1,6 +1,6 @@
 This project contains two worktrees. One for the runtime and one for the SDK.
 
-The runtime worktree is `{feature}-runtime` and the SDK worktree is `{feature}-sdk`.
+The runtime worktree is `attributes-keep-only-strings-runtime` and the SDK worktree is `attributes-keep-only-strings-sdk`.
 They share code through an SPI defined in the runtime worktree.
 
 ## SPI evolution
@@ -11,7 +11,7 @@ After changing the SPI, publish the runtime locally and point the SDK at the new
 How to update the SDK's runtime version:
 * From a root sbt session, run `publishSpi`. It publishes every runtime module to `~/.m2`
   (consumed by the Maven-based samples) and `~/.ivy2/local` (consumed by the SDK build),
-  rewrites `akka-runtime.version` in `{feature}-sdk/project/Dependencies.scala` to the freshly
+  rewrites `akka-runtime.version` in `attributes-keep-only-strings-sdk/project/Dependencies.scala` to the freshly
   published version, and reloads. IntelliJ auto-reloads on the `Dependencies.scala` change.
 
 
@@ -27,4 +27,4 @@ version-bump flow above.
 
 ⚠️ The root has its own `.git` scaffold repo: running `git` from the root talks to
 that scaffold, NOT the worktrees. Always run git **inside** the
-`{feature}-runtime` / `{feature}-sdk` subdirectories.
+`attributes-keep-only-strings-runtime` / `attributes-keep-only-strings-sdk` subdirectories.

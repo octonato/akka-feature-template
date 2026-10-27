@@ -12,6 +12,6 @@ project/project/
 .nogit/
 .claude/
 samples
-{feature}-sdk/
-{feature}-runtime/
+attributes-keep-only-strings-sdk/
+attributes-keep-only-strings-runtime/
 .features
