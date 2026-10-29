@@ -4,10 +4,13 @@ Helper shell functions for spinning up and tearing down an Akka **feature
 workspace** — a feature root plus two linked git worktrees (the SDK and the
 runtime) that share code through an SPI.
 
+The feature root is a plain copy of the template, not a git repository, so it
+cannot be pushed.
+
 A feature workspace looks like this:
 
 ```
-<feature>/            # feature root worktree (from AKKA_FEATURE_DIR)
+<feature>/            # feature root, copied from AKKA_FEATURE_DIR
 ├── <feature>-sdk/        # worktree of the SDK repo
 ├── <feature>-runtime/    # worktree of the runtime repo
 └── samples -> <feature>-sdk/samples   # symlink the root build expects
@@ -22,7 +25,7 @@ A feature workspace looks like this:
   `akka.close.feature`) contain dots, which only bash and zsh accept as function
   names.
 - **git** with worktree support (git ≥ 2.5).
-- Standard POSIX utilities: `basename`, `dirname`, `sed`, `head`, `ln`.
+- Standard POSIX utilities: `basename`, `dirname`, `sed`, `head`, `ln`, `tar`.
 
 ### Repositories
 
@@ -78,14 +81,24 @@ akka.new.feature my-feature
 
 This will:
 
-1. Create the feature root worktree as a sibling of `AKKA_FEATURE_DIR`.
+1. Copy the template's committed files (`git archive HEAD`) into a sibling of
+   `AKKA_FEATURE_DIR`.
 2. Run `set-feature.sh` to substitute the feature name into the templated files.
 3. Create the SDK worktree at `<feature>/my-feature-sdk`.
 4. Create the runtime worktree at `<feature>/my-feature-runtime`.
 5. Create the `samples` symlink the root build expects.
-6. Make the initial commit.
 
 Branch names are `<GH_USER_PREFIX><name>` for each worktree.
+
+### Publish the SPI
+
+```sh
+./publish-spi.sh
+```
+
+Run it from the feature root. It publishes the runtime worktree to `~/.m2` and
+`~/.ivy2/local`, then sets the SDK worktree's runtime version to the published
+version.
 
 ### Close a feature
 
@@ -93,6 +106,6 @@ Branch names are `<GH_USER_PREFIX><name>` for each worktree.
 akka.close.feature my-feature
 ```
 
-This removes the SDK, runtime, and feature root worktrees and deletes their
-branches. If a worktree has uncommitted changes or unpushed commits you will be
+This removes the SDK and runtime worktrees, deletes their branches, and deletes
+the feature root. If a worktree has uncommitted changes or unpushed commits you will be
 warned and asked to confirm before anything is deleted.

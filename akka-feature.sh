@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 #
-# akka-feature.sh — create / close an Akka "feature" workspace made of three
-# linked git worktrees: a feature root, the SDK and the runtime.
+# akka-feature.sh — create / close an Akka "feature" workspace: a feature root
+# copied from the template, holding linked git worktrees of the SDK and the runtime.
 #
 # Source this file from your shell to get the `akka.new.feature` and
 # `akka.close.feature` functions.
 #
 # Required environment variables:
-#   AKKA_FEATURE_DIR    path to the feature template repo. Feature worktrees are
+#   AKKA_FEATURE_DIR    path to the feature template repo. Feature roots are
 #                       created as siblings of this directory.
 #   AKKA_SDK_DIR        path to the Akka SDK checkout used as the worktree base.
 #   AKKA_RUNTIME_DIR    path to the Akka runtime checkout used as the worktree base.
@@ -173,14 +173,14 @@ akka.new.feature() {
     if [ $1 ]; then
         _akka_require_env || return 1
 
-        # create feature worktree (as a sibling of the template directory)
-        echo "Creating feature worktree $1 in $AKKA_FEATURE_DIR"
-        cd "$AKKA_FEATURE_DIR"
-        _akka_git_worktree "$1"
+        # copy the template scaffold (as a sibling of the template directory)
+        DIR="$(dirname "$AKKA_FEATURE_DIR")/$1"
+        echo "Creating feature root $1 at $DIR"
+        mkdir "$DIR" || return 1
+        git -C "$AKKA_FEATURE_DIR" archive HEAD | tar -x -C "$DIR"
+        cd "$DIR"
         ./set-feature.sh "$1"
 
-
-        DIR=$(pwd)
         echo "Feature directory is $DIR"
         (
             echo
@@ -209,12 +209,9 @@ akka.new.feature() {
         echo "-----------------------------------------------"
         echo
 
-        git add .
-        git commit -m "feat: initialize '$1'"
-
         echo
         echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
-        echo "Created feature worktree at $DIR"
+        echo "Created feature root at $DIR"
         echo "  SDK worktree at ${DIR}/$1-sdk"
         echo "  Runtime worktree at ${DIR}/$1-runtime"
         echo "Done"
@@ -243,7 +240,7 @@ akka.close.feature() {
             echo "Deleting feature branch '$feature'"
             echo "  SDK worktree at ${DIR}/$feature-sdk"
             echo "  Runtime worktree at ${DIR}/$feature-runtime"
-            echo "  Feature worktree at ${DIR}"
+            echo "  Feature root at ${DIR}"
             echo "-----------------------------------------------"
             echo
 
@@ -257,9 +254,8 @@ akka.close.feature() {
             _akka_delete_branch "${DIR}/$feature-runtime" "$skip_confirm"
             echo
             echo "-----------------------------------------------"
-            # The root feature worktree never needs confirmation: it only holds
-            # the scaffold + symlink, the real work lives in the sub-worktrees.
-            echo "Finally delete feature worktree ${DIR}"
+            # The feature root holds only the scaffold and the symlink.
+            echo "Finally delete feature root ${DIR}"
             _akka_delete_branch "${DIR}" 1
             echo "-----------------------------------------------"
         )
